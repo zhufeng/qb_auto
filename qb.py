@@ -1,17 +1,43 @@
 import qbittorrentapi
 import re
 
-f= open("qb_auto_ext.txt","r");
-lines = f.read().splitlines();
-# print (lines);
-# host = lines[0];
-host = lines[3];
-user = lines[1];
-passwd = lines[2];
-# print (lines);
-# print ({user});
+## 读取qb_auto_ext.txt文件中定义的qb webui的登录信息
+userFile = open("qb_auto_ext.txt" , "r");
+userLines = userFile.read().splitlines();
+# print (userLines);
+# host = userLines[3];
+host = userLines[0];
+user = userLines[1];
+passwd = userLines[2];
+# print (userLines);
 print ({host});
-f.close();
+print ({user});
+userFile.close();
+
+
+## 读取qb_categories.txt文件中定义的
+## tracker名和分类名的对应关系，并生成字典
+cateFile = open("qb_categories.txt" , "r");
+# cateLines = cateFile.read().splitlines();
+# print (cateLines);
+cateDict = {};
+
+while True:
+    line = cateFile.readline().split("\n")[0];
+    # print (line);
+    if line == '':
+        break
+    index = line.find(':');
+    # print (index);
+    key = line[:index];
+    value = line[index+1:];
+    cateDict[key] = value;
+
+cateFile.close();
+# print (cateDict.items());
+# for k,v in cateDict.items():
+    # print (k, "=", v);
+
 
 # instantiate a Client using the appropriate WebUI configuration
 # qbt_client = qbittorrentapi.Client(host='localhost:****', username='***', password='***')
@@ -27,8 +53,8 @@ except qbittorrentapi.LoginFailed as e:
 # display qBittorrent info
 print(f'qBittorrent: {qbt_client.app.version}');
 print(f'qBittorrent Web API: {qbt_client.app.web_api_version}');
-for k,v in qbt_client.app.build_info.items():
-    print(f'{k}: {v}');
+# for k,v in qbt_client.app.build_info.items():
+    # print(f'{k}: {v}');
 
 # retrieve and show all torrents
 # for torrent in qbt_client.torrents_info():
@@ -40,25 +66,25 @@ for k,v in qbt_client.app.build_info.items():
 # print (qbt_client.torrents_info(status_filter='active'));
 
 # for torrent in qbt_client.torrents_info():
-    # print(f'{torrent.hash[-6:]}: {torrent.name} ({torrent.state})')
-
-# torrents = qbt_client.torrents_info(category='');
-
 for torrent in qbt_client.torrents_info(category=''):
-# for torrent in qbt_client.torrents_info():
-    # print(f'{torrent.hash[10:]}: {torrent.name} - {torrent.state}');
-    # print (torrent.tracker[0:30], torrent.name[0:15]);
-    tracker = torrent.tracker;
-    # print (tracker[0:30]);
-    if re.search(r'league',tracker):
-        torrent.set_category(category='leaguehd');
-        print ("Categorized!!!!");
-    else:
-        print ("NOT MATCH");
+# for torrent in qbt_client.torrents_info(category='frds'):
+    # print(f'{torrent.hash[-6:]}: {torrent.name} ({torrent.state})')
+    # print (torrent);
+    for tracker in torrent.trackers:
+        trackerUrl = tracker.url[0:30];
+        if (trackerUrl.startswith('http')):
+            # print (trackerUrl);
+            # print (torrent.name);
+            for k,v in cateDict.items():
+                # print (k);
+                if re.search(k, trackerUrl):
+                    # print (v)
+                    torrent.set_category(category=v);
+                    # print ("Category SET!! -> " + torrent.name[0:30]);
+                    print (torrent.name[0:30] + " -> " + v );
 
-    # if tracker
 
 
 
-# print (torrents);
+
 
