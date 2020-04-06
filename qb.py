@@ -1,19 +1,25 @@
 import os
 import re
+import telnetlib
 import configparser
 import qbittorrentapi
 
-
+# 读取配置文件[连接/分类/标签信息]
 def readConf():
     print ("I'm readConf()...");
 
     global host;
+    global port;
     global user;
     global passwd;
     global cateDict;
     global labelDict;
 
-    cfg = configparser.ConfigParser();
+    # 修复configparser读取文件时左边总为小写
+    cfg = configparser.RawConfigParser();
+    cfg.optionxform = str;
+
+    # 适配.gitignore防止自用登录信息被git push泄露
     if os.path.exists('qb_auto1.ini'):
         cfg.read_file(open("qb_auto1.ini"));
         print ("Reading qb_auto1.ini...");
@@ -23,10 +29,39 @@ def readConf():
     # print (cfg.sections());
 
     # 读取配置文件中qb webui[connection]登录信息部分
-    host = cfg['connection']['localhost'];
-    # host = cfg['connection']['host']);
+    port = cfg['connection']['port'];
+    # print (str.isdigit(port));
+    if str.isdigit(port):
+        pass;
+        # print (port);
+    else:
+        print ("Port is NOT defined or Illegal!!! Terminated!!!\n");
+        exit();
+
+    # 判断localhost:port是否可连接，可连接则使用localhost
+    # 否则使用qb_auto.ini中定义的host
+    try:
+        if telnetlib.Telnet().open('127.0.0.1', port) is None:
+            host = 'http://localhost';
+            # print ("Using: localhost:" + port + "...");
+    except Exception as e:
+        host = "http://" + cfg['connection']['host'];
+        # if len(host) == 0:
+        if str.isdigit(host) or len(host) == 0:
+            print ("Host is NOT defined or Illegal!!! Terminated!!!\n");
+            exit();
+        else:
+            pass;
+            # print ("Telnet -> localhost:" + port + " FAILED!!!");
+            # print ("Using predefined host: " + host);
+
     user = cfg['connection']['user'];
     passwd = cfg['connection']['password'];
+    if len(user) == 0 or len(passwd) == 0:
+        print ("User or Password is NOT defined !!! Terminated!!!\n");
+        exit();
+
+    print ("Using: " + user + "@" + host + ":" + port + "....");
 
     # 读取配置文件中[category]分类部分
     cateDict = cfg._sections['category'];
@@ -39,10 +74,13 @@ def readConf():
     print ("");
 
 
-def qbConn(host,user,passwd):
+# 连接到qb webui
+def qbConn(host,port,user,passwd):
     print ("I'm qbConn()...");
 
     global qbClient;
+    host = host + ":" + port;
+    print (host);
 
     # instantiate a Client using the appropriate WebUI configuration
     # qbClient = qbittorrentapi.Client(host='localhost:****', username='***', password='***')
@@ -73,12 +111,20 @@ def qbConn(host,user,passwd):
     print ("");
 
 
-def autoCate(qbClient):
+# 使用读取到的配置文件分类信息对种子进行自动设置分类
+def autoCate(qbClient, cateDict):
     print ("I'm autoCate()...");
 
-    # for torrent in qbClient.torrents_info():
-    for torrent in qbClient.torrents_info(category=''):
-        # for torrent in qbtCon.torrents_info(category='frds'):
+    # category=''表示未分类种子，不加任何参数表示选中所有种子
+    torrents = qbClient.torrents_info(category='');
+    # torrents = qbClient.torrents_info(category='frds');
+    # torrents = qbClient.torrents_info();
+
+    if len(torrents) == 0:
+        print ("No Uncategoried torrent !! Terminated!!\n");
+        exit();
+
+    for torrent in torrents:
         # print(f'{torrent.hash[-6:]}: {torrent.name} ({torrent.state})')
         # print (torrent);
         for tracker in torrent.trackers:
@@ -94,14 +140,73 @@ def autoCate(qbClient):
                         # print ("Category SET!! -> " + torrent.name[0:30]);
                         print (torrent.name[0:30] + " -> " + v );
 
-    print ("AutoCate done...!", "\n");
+    print ("AutoCate done...!\n");
 
 
-def autoLabel(qbClient):
-    pass;
+# 使用读取到的配置文件标签信息对种子进行自动设置标签
+def autoLabel(qbClient, labelDict, cate=None):
+    print ("I'm autoLabel()...");
+
+    # 强制对所有种子设置标签
+    if cate is None:
+        print ("AutoLabel ALL torrents...");
+        torrents = qbClient.torrents_info();
+    # 强制对传入分类名的种子设置标签
+    else:
+        torrents = qbClient.torrents_info(category=cate);
 
 
-def forceReport():
+    # torrents = qbClient.torrents_info(category='');
+    # torrents = qbClient.torrents_info(category='frds');
+    # torrents = qbClient.torrents_info(category='frds',limit=100);
+    # torrents = qbClient.torrents_info();
+
+    # print (torrents);
+
+    for torrent in torrents:
+        # print(f'{torrent.hash[-6:]}: {torrent.name} ({torrent.state})')
+        torrentName = torrent.name;
+        torrentCate = torrent.category;
+        torrentHash = torrent.hash;
+        # print (torrentName);
+        # print (torrentCate);
+        print ("11 " + torrentHash);
+        for k,v in labelDict.items():
+            # print (k);
+            if re.search(k, torrentName):
+                # print (v)
+                print (torrentHash);
+                # torrent.addTags(hashes=torrentHash, tags=v);
+                print (torrent.name[0:30] + " -> " + v );
+            else:
+                print ("No " + v + " like torrent!!");
+                pass;
+
+    print ("AutoLabel done...!\n");
+
+
+# 强制重新汇报所有种子或某个分类的种子
+def forceReannounce(qbClient, cate=None):
+    print ("I'm ForceReannounce()...");
+
+    # 强制重新汇报所有种子
+    if cate is None:
+        print ("Reannoucing ALL torrents...");
+        qbClient.torrents_reannounce(hashes='all');
+        print ("ForceReannounce ALL torrents done...!\n");
+    # 强制汇报传入分类名的种子
+    else:
+        print ("[" + cate + "] torrents Reannoucing...");
+        torrents = qbClient.torrents_info(category=cate);
+        for torrent in torrents:
+            # print ("[" + torrent.hash + "] " + torrent.name[:30]);
+            hash = torrent.hash;
+            qbClient.torrents_reannounce(hashes=hash);
+        print ("[" + cate + "] ForceReannounce done...!\n");
+
+
+# 对种子的文件内容进行简单地文件存在检查
+def checkFileExistence():
     pass;
 
 
@@ -109,6 +214,7 @@ def main():
     print ("I'm main()...", "\n");
 
     global host;
+    global port;
     global user;
     global passwd;
     global cateDict;
@@ -116,9 +222,18 @@ def main():
     global qbClient;
 
     readConf();
-    # print (host,user,passwd,cateDict,labelDict);
-    qbConn(host, user, passwd);
-    autoCate(qbClient);
+    # print (host,user,passwd);
+    # print (cateDict);
+    # print (labelDict);
+    qbConn(host, port, user, passwd);
+
+    forceReannounce(qbClient);
+    # forceReannounce(qbClient,'frds');
+
+    autoCate(qbClient, cateDict);
+
+    # autoLabel(qbClient, labelDict);
+
 
 
 if __name__ == '__main__':
