@@ -1,5 +1,6 @@
 import os
 import re
+import bencode
 import telnetlib
 import configparser
 import qbittorrentapi
@@ -122,7 +123,8 @@ def autoCate(qbClient, cateDict):
 
     if len(torrents) == 0:
         print ("No Uncategoried torrent !! Terminated!!\n");
-        exit();
+        # exit();
+        return;
 
     for torrent in torrents:
         # print(f'{torrent.hash[-6:]}: {torrent.name} ({torrent.state})')
@@ -210,6 +212,61 @@ def checkFileExistence():
     pass;
 
 
+# 按tracker来重命名种子文件
+def renameTorrent(path, cate=None, type='first'):
+    
+    print ("Renaming type is -> " + type);
+
+    winerror = []
+    for root, dirlist, filelist in os.walk(path):
+        for file in filelist:
+            # file = path + file;
+            # print (file);
+
+            with open((path+file), 'rb') as fh:
+                torrent_file = fh.read();
+
+            torrent_metadata = bencode.decode(torrent_file);
+            torrent_tracker = torrent_metadata[b'announce'][0:50];
+            torrent_name = torrent_metadata[b'info'][b'name'].decode('utf8');
+            # print (torrent_tracker);
+            # print (torrent_name + '\n');
+            # exit();
+
+            for k,v in cateDict.items():
+                # print (k);
+                if re.search(k, torrent_tracker.decode()):
+                    # print (v)
+                    file_site_first = '[' + v + ']_' + torrent_name + '.torrent';
+                    file_site_last = torrent_name + '_[' + v + ']' + '.torrent';
+
+                    # print (file_site_first);
+                    # print (file_site_last);
+
+                    if (type == 'first'):
+                        file_new = file_site_first;
+                    else:
+                        file_new = file_site_last;
+
+                    # 切换命名方法
+                    # file_new = file_site_first;
+                    # file_new = file_site_last;
+
+                    try:
+                        if os.path.join(path, file_new) == os.path.join(path, file):
+                            print (file);
+                            print ("No need to Rename...\n");
+                            pass;
+                        else:
+                            # print('Now Renaming:', file, 'To', file_new)
+                            print (file + " -> \n" + file_new );
+                            os.rename(os.path.join(path, file),os.path.join(path, file_new));
+                            print ("");
+                    except WindowsError:
+                        pass;
+                        # winerror.append(file)
+
+
 def main():
     print ("I'm main()...", "\n");
 
@@ -234,6 +291,9 @@ def main():
 
     # autoLabel(qbClient, labelDict);
 
+    path = r'E:\torrents\\';
+    # renameTorrent(path);
+    # renameTorrent(path, type='last');
 
 
 if __name__ == '__main__':
