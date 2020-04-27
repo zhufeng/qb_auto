@@ -1,9 +1,10 @@
 import os
 import re
-import bencode
 import telnetlib
 import configparser
 import qbittorrentapi
+from torrentool.api import Torrent
+from torrentool.api import Bencode
 
 # 读取配置文件[连接/分类/标签信息]
 def readConf():
@@ -214,28 +215,32 @@ def checkFileExistence():
 
 # 按tracker来重命名种子文件
 def renameTorrent(path, cate=None, type='first'):
-    
+
     print ("Renaming type is -> " + type);
 
     winerror = []
-    for root, dirlist, filelist in os.walk(path):
-        for file in filelist:
-            # file = path + file;
-            # print (file);
+    for file in os.listdir(path):
+        if os.path.isfile( path + file) & file.endswith('.torrent'):
+            # print ( path + file);
 
-            with open((path+file), 'rb') as fh:
-                torrent_file = fh.read();
-
-            torrent_metadata = bencode.decode(torrent_file);
-            torrent_tracker = torrent_metadata[b'announce'][0:50];
-            torrent_name = torrent_metadata[b'info'][b'name'].decode('utf8');
+            torrent_metadata = Bencode.read_file( path + file );
+            torrent_tracker = torrent_metadata['announce'][0:50];
+            torrent_name = torrent_metadata['info']['name'];
+            if ( "private" in torrent_metadata['info'].keys() ):
+                torrent_is_private = torrent_metadata['info']['private'];
+            else:
+                print ("!!!!!");
+                print ("Torrent don't have PRIVATE attribute...");
+                print ("!!!!!");
+                torrent_is_private = 0;
+            # print (torrent_metadata['info'].keys());
             # print (torrent_tracker);
             # print (torrent_name + '\n');
-            # exit();
 
             for k,v in cateDict.items():
                 # print (k);
-                if re.search(k, torrent_tracker.decode()):
+                # if re.search(k, torrent_tracker.decode()):
+                if re.search(k, torrent_tracker):
                     # print (v)
                     file_site_first = '[' + v + ']_' + torrent_name + '.torrent';
                     file_site_last = torrent_name + '_[' + v + ']' + '.torrent';
@@ -258,8 +263,7 @@ def renameTorrent(path, cate=None, type='first'):
                             print ("No need to Rename...\n");
                             pass;
                         else:
-                            # print('Now Renaming:', file, 'To', file_new)
-                            print (file + " -> \n" + file_new );
+                            print (file + " Renaming -> \n" + file_new );
                             os.rename(os.path.join(path, file),os.path.join(path, file_new));
                             print ("");
                     except WindowsError:
@@ -291,8 +295,8 @@ def main():
 
     # autoLabel(qbClient, labelDict);
 
-    path = r'E:\torrents\\';
-    # renameTorrent(path);
+    path = r'E:/torrents/';
+    renameTorrent(path);
     # renameTorrent(path, type='last');
 
 

@@ -11,6 +11,7 @@ some qbittorrent automation stuff for Private Tracker.
 支持win/linux/mac的__python3__环境，在使用前，需要通过pip安装qbittorrent-api模块。
 ```
 pip install qbittorrent-api
+pip install torrentool
 ```
 
 ---
