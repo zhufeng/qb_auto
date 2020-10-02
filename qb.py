@@ -1,5 +1,8 @@
 import os
 import re
+import uuid
+import time
+import datetime
 import telnetlib
 import configparser
 import qbittorrentapi
@@ -221,7 +224,7 @@ def renameTorrent(path, cate=None, type='first'):
     winerror = []
     for file in os.listdir(path):
         if os.path.isfile( path + file) & file.endswith('.torrent'):
-            # print ( path + file);
+            print ( path + file);
 
             torrent_metadata = Bencode.read_file( path + file );
             torrent_tracker = torrent_metadata['announce'][0:50];
@@ -242,8 +245,13 @@ def renameTorrent(path, cate=None, type='first'):
                 # if re.search(k, torrent_tracker.decode()):
                 if re.search(k, torrent_tracker):
                     # print (v)
-                    file_site_first = '[' + v + ']_' + torrent_name + '.torrent';
-                    file_site_last = torrent_name + '_[' + v + ']' + '.torrent';
+
+                    # 增加随机UUID，防止重命名文件时失败
+                    uid = uuid.uuid1().hex[0:8];
+                    uid = '_' + uid + '_';
+
+                    file_site_first = '[' + v + ']_' + torrent_name + uid + '.torrent';
+                    file_site_last = torrent_name + uid + '[' + v + ']' + '.torrent';
 
                     # print (file_site_first);
                     # print (file_site_last);
@@ -296,7 +304,7 @@ def main():
     # autoLabel(qbClient, labelDict);
 
     path = r'E:/torrents/';
-    renameTorrent(path);
+    # renameTorrent(path);
     # renameTorrent(path, type='last');
 
 
