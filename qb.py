@@ -2,6 +2,7 @@ import os
 import re
 import uuid
 import time
+import shutil
 import datetime
 import telnetlib
 import configparser
@@ -66,7 +67,12 @@ def readConf():
         print ("User or Password is NOT defined !!! Terminated!!!\n");
         exit();
 
-    print ("Using: " + user + "@" + host + ":" + port + "....");
+    # 输入打码
+    user1 = user[0:3] + "***" + user[len(user)-3:];
+    host1 = host[7:11] + "***" + host[len(host)-5:len(host)];
+    port1 = port[0:1] + "***" + port[len(port)-2:len(port)];
+    # print ("Using: " + user + "@" + host + ":" + port + "....");
+    print ("Using: " + user1 + "@" + host1 + ":" + port1 + "....");
 
     # 读取配置文件中[category]分类部分
     cateDict = cfg._sections['category'];
@@ -85,7 +91,7 @@ def qbConn(host,port,user,passwd):
 
     global qbClient;
     host = host + ":" + port;
-    print (host);
+    # print (host);
 
     # instantiate a Client using the appropriate WebUI configuration
     # qbClient = qbittorrentapi.Client(host='localhost:****', username='***', password='***')
@@ -219,9 +225,17 @@ def checkFileExistence():
 # 按tracker来重命名种子文件
 def renameTorrent(path, cate=None, type='first'):
 
+    print ("I'm renameTorrent()...");
     print ("Renaming type is -> " + type);
 
-    winerror = []
+    # 判断path参数的文件夹是否存在, 不存在就退出
+    if os.path.exists(path):
+        print (path + " exists...");
+    else:
+        print (path + " not exists!!! Terminating ...");
+        exit();
+
+    winerror = [];
     for file in os.listdir(path):
         if os.path.isfile( path + file) & file.endswith('.torrent'):
             print ( path + file);
@@ -277,6 +291,38 @@ def renameTorrent(path, cate=None, type='first'):
                     except WindowsError:
                         pass;
                         # winerror.append(file)
+    print ("renameTorrent() done...!\n");
+
+
+
+# 复制qb暂停种子的torrent文件到特定目录
+def copyPausedTorrentFile(qbClient, path, qb_path, cateDict=None):
+
+    print ("I'm copyPausedTorrentFile()...");
+
+    # 判断path参数的文件夹是否存在, 不存在就创建
+    if os.path.exists(path):
+        print (path + " exists...");
+    else:
+        print (path + " not exists!!! Creating it ...");
+        os.mkdir(path);
+
+    torrents = qbClient.torrents_info(filter='paused');
+    # torrents = qbClient.torrents_info(category='');
+
+    winerror = [];
+    for torrent in torrents:
+        # print(f'{torrent.hash}: {torrent.name[0:30]} ({torrent.state})')
+        # print (torrent.hash + "|" + torrent.name[0:30] + "|" + torrent.save_path);
+
+        print ("Copying " + torrent.hash + " to " + path + "...");
+        torrent_file = qb_path + torrent.hash + ".torrent";
+        # print (torrent_file);
+
+        # 从qb BT_backup目录复制筛选出来的种子到path目录
+        shutil.copy(torrent_file, path);
+
+    print ("copyPausedTorrentFile done...!\n");
 
 
 def main():
@@ -289,26 +335,90 @@ def main():
     global cateDict;
     global labelDict;
     global qbClient;
+    global torrents;
 
+    # 接收输入选项前先读取qb_auto.ini配置文件
     readConf();
     # print (host,user,passwd);
     # print (cateDict);
     # print (labelDict);
-    qbConn(host, port, user, passwd);
 
-    forceReannounce(qbClient);
-    # forceReannounce(qbClient,'frds');
+    print ("    * * * *  功 能 菜 单  * * * *    \n");
+    print ("1. 将qb未分类种子按预定义规则进行分类。");
+    print ("2. 重命名特定目录下的torrent种子文件。");
+    print ("3. 将qb暂停的种子的torrent文件复制到特定目录并重命名。");
+    print ("请输入需要使用的功能选项：(直接回车默认选择1) \n");
 
-    autoCate(qbClient, cateDict);
+    # 定义存放torrent的工作目录及qb BT_backup路径
+    path = r'E:/torrents/';
+    qb_path = r'D:/常用软件/qbittorrent_x64/profile/qBittorrent/data/BT_backup/';
+
+    # 获取输入值判断执行什么功能函数
+    option = input("");
+    # print (option);
+
+    if option == "" or option == "1":
+        # print ("输入为空");
+
+        # 连接qb webapi
+        qbConn(host, port, user, passwd);
+
+        # 强制重新汇报所有种子
+        # forceReannounce(qbClient,'frds');
+        forceReannounce(qbClient);
+
+        # 自动对未分类种子进行分类
+        autoCate(qbClient, cateDict);
+        # print ("Hahaha -> 直接回车或1");
+
+    elif option == "2":
+        print ("请输入需要重命名的种子的路径：(直接回车默认使用E:/torrents/)");
+        path = input("");
+        if path == "":
+            print ("输入path路径为空, 使用E:/torrents/...");
+            path = r'E:/torrents/';
+            pass;
+
+        print ("请输入种子的pt站名位置: (直接回车默认为站名在前,其它任何字符为默认在后)");
+        type = input("");
+        if type == "":
+            # print ("first");
+            # print (path);
+            renameTorrent(path);
+        else:
+            # print ("last");
+            # print (path);
+            renameTorrent(path, type='last');
+
+    elif option == "3":
+        # 连接qb webapi
+        qbConn(host, port, user, passwd);
+
+        print ("请输入需要重命名的种子的路径：(直接回车默认使用E:/torrents/)");
+        path = input("");
+        if path == "":
+            print ("输入path路径为空, 使用E:/torrents/...");
+            path = r'E:/torrents/';
+            pass;
+
+        print ("请输入种子的pt站名位置: (直接回车默认为站名在前,其它任何字符为默认在后)");
+        type = input("");
+
+        copyPausedTorrentFile(qbClient, path, qb_path);
+
+        if type == "":
+            print ("first");
+            renameTorrent(path);
+        else:
+            print ("last");
+            renameTorrent(path, type='last');
+
 
     # autoLabel(qbClient, labelDict);
+    # getTorrentHash(qbClient, cateDict);
 
-    path = r'E:/torrents/';
-    # renameTorrent(path);
-    # renameTorrent(path, type='last');
 
 
 if __name__ == '__main__':
     main();
-
 
