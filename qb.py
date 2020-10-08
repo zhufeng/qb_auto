@@ -10,6 +10,7 @@ import qbittorrentapi
 from torrentool.api import Torrent
 from torrentool.api import Bencode
 
+
 # 读取配置文件[连接/分类/标签信息]
 def readConf():
     print ("I'm readConf()...");
@@ -82,7 +83,7 @@ def readConf():
     labelDict = cfg._sections['label'];
     # print (labelDict);
 
-    print ("");
+    print ("readConf done!...\n");
 
 
 # 连接到qb webui
@@ -119,7 +120,7 @@ def qbConn(host,port,user,passwd):
 
     # print (qbClient.torrents_info(status_filter='active'));
 
-    print ("");
+    print ("qbConn done!...\n");
 
 
 # 使用读取到的配置文件分类信息对种子进行自动设置分类
@@ -215,6 +216,7 @@ def forceReannounce(qbClient, cate=None):
             hash = torrent.hash;
             qbClient.torrents_reannounce(hashes=hash);
         print ("[" + cate + "] ForceReannounce done...!\n");
+    print ("forceReannounce done!...\n");
 
 
 # 对种子的文件内容进行简单地文件存在检查
@@ -291,8 +293,7 @@ def renameTorrent(path, cate=None, type='first'):
                     except WindowsError:
                         pass;
                         # winerror.append(file)
-    print ("renameTorrent() done...!\n");
-
+    print ("renameTorrent done...!\n");
 
 
 # 复制qb暂停种子的torrent文件到特定目录
@@ -325,6 +326,37 @@ def copyPausedTorrentFile(qbClient, path, qb_path, cateDict=None):
     print ("copyPausedTorrentFile done...!\n");
 
 
+# 获取特定种子的信息
+def getTorrentInfo(qbClient, cateDict=None):
+
+    print ("I'm getTorrentInfo()...");
+
+    # 筛选状态为"paused 暂停"的种子
+    torrents = qbClient.torrents_info(filter='paused');
+
+    # 筛选分类为"cmct"的种子
+    # torrents = qbClient.torrents_info(category='cmct');
+
+    winerror = [];
+    for torrent in torrents:
+
+        ## qb官方 torrent list的属性 
+        ## https://github.com/qbittorrent/qBittorrent/wiki/WebUI-API-(qBittorrent-4.1)#get-torrent-list
+
+        # 获取种子hash/种子名/种子状态
+        # print(f'{torrent.hash}|{torrent.name[0:30]}|{torrent.state}|{torrent.save_path}');
+
+        ## qb官方 torrent properties属性 
+        ## https://github.com/qbittorrent/qBittorrent/wiki/WebUI-API-(qBittorrent-4.1)#get-torrent-generic-properties
+
+        # 查询种子属性需要使用种子hash作为参数传入
+        # 获取种子总大小等属性
+        torrentProperties = qbClient.torrents_properties(torrent_hash = torrent.hash);
+        print (f'{torrent.hash}|{torrent.name[0:30]}|{torrentProperties.total_size}|{torrent.save_path}');
+
+    print ("getTorrentInfo done...!\n");
+
+
 def main():
     print ("I'm main()...", "\n");
 
@@ -347,6 +379,7 @@ def main():
     print ("1. 将qb未分类种子按预定义规则进行分类。");
     print ("2. 重命名特定目录下的torrent种子文件。");
     print ("3. 将qb暂停的种子的torrent文件复制到特定目录并重命名。");
+    print ("4. 获取qb特定种子的信息。");
     print ("请输入需要使用的功能选项：(直接回车默认选择1) \n");
 
     # 定义存放torrent的工作目录及qb BT_backup路径
@@ -408,14 +441,19 @@ def main():
 
         if type == "":
             print ("first");
-            renameTorrent(path);
+            # renameTorrent(path);
         else:
             print ("last");
-            renameTorrent(path, type='last');
+            # renameTorrent(path, type='last');
+
+    elif option == "4":
+        # 连接qb webapi
+        qbConn(host, port, user, passwd);
+        getTorrentInfo(qbClient, cateDict=None);
+
 
 
     # autoLabel(qbClient, labelDict);
-    # getTorrentHash(qbClient, cateDict);
 
 
 
