@@ -1,8 +1,11 @@
 import os
 import re
+import sys
+import ssl
 import uuid
 import time
 import shutil
+import requests
 import datetime
 import telnetlib
 import configparser
@@ -15,10 +18,7 @@ from torrentool.api import Bencode
 def readConf():
     print ("I'm readConf()...");
 
-    global host;
-    global port;
-    global user;
-    global passwd;
+    global hostDict;
     global cateDict;
     global labelDict;
 
@@ -35,45 +35,41 @@ def readConf():
         print ("Reading qb_auto.ini...");
     # print (cfg.sections());
 
-    # 读取配置文件中qb webui[connection]登录信息部分
-    port = cfg['connection']['port'];
-    # print (str.isdigit(port));
-    if str.isdigit(port):
-        pass;
-        # print (port);
-    else:
-        print ("Port is NOT defined or Illegal!!! Terminated!!!\n");
-        exit();
+    # ini配置文件允许定义多个qb服务器
+    # 遍历ini配置文件中带有connection的section
+    # 并将它存入hostDict列表中
+    # 多个qb host必须以[connection]开头，可以后面接数字
+    # 如[connection1] [connection2]等
+    hostDict = [];
+    for i,elem in enumerate(cfg.sections()):
+        # sections里面有以connection开头的部分
+        if 'connection' in elem:
+            # print (elem);
+            hostDict.append(cfg._sections[elem]);
 
-    # 判断localhost:port是否可连接，可连接则使用localhost
-    # 否则使用qb_auto.ini中定义的host
-    try:
-        if telnetlib.Telnet().open('127.0.0.1', port) is None:
-            host = 'http://localhost';
-            # print ("Using: localhost:" + port + "...");
-    except Exception as e:
-        host = "http://" + cfg['connection']['host'];
-        # if len(host) == 0:
-        if str.isdigit(host) or len(host) == 0:
-            print ("Host is NOT defined or Illegal!!! Terminated!!!\n");
-            exit();
-        else:
-            pass;
-            # print ("Telnet -> localhost:" + port + " FAILED!!!");
-            # print ("Using predefined host: " + host);
+            # 判断ini配置中是否存在必需配置项
+            if (cfg.has_option(elem,'host')) and (cfg.has_option(elem,'port')) and\
+                (cfg.has_option(elem,'user')) and (cfg.has_option(elem,'password')) :
+                pass;
+            else:
+                print (elem + " : cfg file has NO HOST/PORT/USER/PASSWD Defined!!! Terminated!!!\n");
+                exit();
 
-    user = cfg['connection']['user'];
-    passwd = cfg['connection']['password'];
-    if len(user) == 0 or len(passwd) == 0:
-        print ("User or Password is NOT defined !!! Terminated!!!\n");
-        exit();
+            # 判断配置文件中host/user/password是否合法
+            if len(cfg[elem]['host']) == 0 or len(cfg[elem]['user']) == 0 or\
+                    len(cfg[elem]['password']) == 0:
+                print (elem + " : HOST/USER/PASSWORD is EMPTY!!! Terminated!!!\n");
+                exit();
 
-    # 输入打码
-    user1 = user[0:3] + "***" + user[len(user)-3:];
-    host1 = host[7:11] + "***" + host[len(host)-5:len(host)];
-    port1 = port[0:1] + "***" + port[len(port)-2:len(port)];
-    # print ("Using: " + user + "@" + host + ":" + port + "....");
-    print ("Using: " + user1 + "@" + host1 + ":" + port1 + "....");
+            # 判断配置文件中port是否为数字
+            if str.isdigit(hostDict[i]['port']):
+                pass;
+            else:
+                print (elem + " : Port is NOT defined or Illegal!!! Terminated!!!\n");
+                exit();
+
+            # print ("end... " + elem);
+
 
     # 读取配置文件中[category]分类部分
     cateDict = cfg._sections['category'];
@@ -91,12 +87,48 @@ def qbConn(host,port,user,passwd):
     print ("I'm qbConn()...");
 
     global qbClient;
+
+    # 打码输出读取的配置文件关键信息
+    user1 = user[0:3] + "***" + user[len(user)-3:];
+    host1 = host[7:11] + "***" + host[len(host)-5:len(host)];
+    port1 = port[0:1] + "***" + port[len(port)-2:len(port)];
+    conn1 = user1 + "@" + host1 + ":" + port1;
+    print ("Using: " + conn1 + "....");
+
+    # 为提高效率，首先判断localhost:port是否可连接
+    # 可连接则使用localhost不通过内网转发或ddns
+    qblocal = "https://localhost:" + port;
+    try:
+        r = requests.get(qblocal,verify=False);
+        # http get 状态200表示可连接
+        if (r.status_code == 200):
+            host = "https://localhost";
+            print ("qb localhost connection detected --- Using localhost... ");
+    except requests.exceptions.RequestException as e:
+        print ("qb localhost Connection Refused!!! " );
+        pass;
+
+    # 判断配置文件传入的地址端口是否能正常连接qb
+    hostTmp = host + ":" + port;
+    try:
+        r = requests.get(hostTmp,verify=False,timeout=5);
+        if (r.status_code == 200):
+            # print (hostTmp + " connected...");
+            pass;
+    except requests.exceptions.RequestException as e:
+        print (conn1 + " NOT able to connect... Skip... \n");
+        qbClient = None;
+        return;
+
     host = host + ":" + port;
     # print (host);
 
     # instantiate a Client using the appropriate WebUI configuration
     # qbClient = qbittorrentapi.Client(host='localhost:****', username='***', password='***')
-    qbClient = qbittorrentapi.Client(host=host, username=user, password=passwd);
+    try:
+        qbClient = qbittorrentapi.Client(host=host, username=user, password=passwd, VERIFY_WEBUI_CERTIFICATE=False);
+    except qbittorrentapi.LoginFailed as e:
+        print(e);
 
     # the Client will automatically acquire/maintain a logged in state in line with any request.
     # therefore, this is not necessary; however, you many want to test the provided login credentials.
@@ -360,10 +392,7 @@ def getTorrentInfo(qbClient, cateDict=None):
 def main():
     print ("I'm main()...", "\n");
 
-    global host;
-    global port;
-    global user;
-    global passwd;
+    global hostDict;
     global cateDict;
     global labelDict;
     global qbClient;
@@ -374,6 +403,7 @@ def main():
     # print (host,user,passwd);
     # print (cateDict);
     # print (labelDict);
+    # print (hostDict);
 
     print ("    * * * *  功 能 菜 单  * * * *    \n");
     print ("1. 将qb未分类种子按预定义规则进行分类。");
@@ -386,23 +416,37 @@ def main():
     path = r'E:/torrents/';
     qb_path = r'D:/常用软件/qbittorrent_x64/profile/qBittorrent/data/BT_backup/';
 
-    # 获取输入值判断执行什么功能函数
-    option = input("");
-    # print (option);
+    # 外部传入参数"1"时自动执行
+    option = "0";
+    try:
+        if( sys.argv[1] == "1" ):
+            option = "1";
+            print ("按传入参数1开始执行... \n");
+    except:
+        # 无传入参数时等待用户输入，判断执行什么功能函数
+        option = input("");
+        # print (option);
 
     if option == "" or option == "1":
         # print ("输入为空");
 
-        # 连接qb webapi
-        qbConn(host, port, user, passwd);
+        for conn in hostDict:
+            # print (conn);
 
-        # 强制重新汇报所有种子
-        # forceReannounce(qbClient,'frds');
-        forceReannounce(qbClient);
+            # 连接qb webapi
+            qbConn(conn['host'], conn['port'], conn['user'], conn['password']);
 
-        # 自动对未分类种子进行分类
-        autoCate(qbClient, cateDict);
-        # print ("Hahaha -> 直接回车或1");
+            # 强制重新汇报所有种子
+            # 当qbclient可连接时才执行
+            if (qbClient):
+                forceReannounce(qbClient);
+            # forceReannounce(qbClient,'frds');
+
+            # 自动对未分类种子进行分类
+            # 当qbclient可连接时才执行
+            if (qbClient):
+                autoCate(qbClient, cateDict);
+            # print ("Hahaha -> 直接回车或1");
 
     elif option == "2":
         print ("请输入需要重命名的种子的路径：(直接回车默认使用E:/torrents/)");
@@ -424,37 +468,45 @@ def main():
             renameTorrent(path, type='last');
 
     elif option == "3":
-        # 连接qb webapi
-        qbConn(host, port, user, passwd);
+        for conn in hostDict:
+            # print (conn);
 
-        print ("请输入需要重命名的种子的路径：(直接回车默认使用E:/torrents/)");
-        path = input("");
-        if path == "":
-            print ("输入path路径为空, 使用E:/torrents/...");
-            path = r'E:/torrents/';
-            pass;
+            # 连接qb webapi
+            qbConn(conn['host'], conn['port'], conn['user'], conn['password']);
 
-        print ("请输入种子的pt站名位置: (直接回车默认为站名在前,其它任何字符为默认在后)");
-        type = input("");
+            # 当qbclient可连接时才执行
+            if (qbClient):
+                print ("请输入需要重命名的种子的路径：(直接回车默认使用E:/torrents/)");
+                path = input("");
+                if path == "":
+                    print ("输入path路径为空, 使用E:/torrents/...");
+                    path = r'E:/torrents/';
+                    pass;
 
-        copyPausedTorrentFile(qbClient, path, qb_path);
+                print ("请输入种子的pt站名位置: (直接回车默认为站名在前,其它任何字符为默认在后)");
+                type = input("");
 
-        if type == "":
-            print ("first");
-            # renameTorrent(path);
-        else:
-            print ("last");
-            # renameTorrent(path, type='last');
+                # 拷贝暂停的种子文件
+                copyPausedTorrentFile(qbClient, path, qb_path);
+
+                if type == "":
+                    print ("first");
+                    renameTorrent(path);
+                else:
+                    print ("last");
+                    renameTorrent(path, type='last');
 
     elif option == "4":
-        # 连接qb webapi
-        qbConn(host, port, user, passwd);
-        getTorrentInfo(qbClient, cateDict=None);
+        for conn in hostDict:
+            # print (conn);
 
+            # 连接qb webapi
+            qbConn(conn['host'], conn['port'], conn['user'], conn['password']);
+
+            getTorrentInfo(qbClient, cateDict=None);
 
 
     # autoLabel(qbClient, labelDict);
-
 
 
 if __name__ == '__main__':

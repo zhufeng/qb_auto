@@ -36,7 +36,7 @@ pip install torrentool
 ## 使用方法
 1. 下载本项目的qb.py和qb_auto.ini文件。
 2. 编辑qb_auto.ini文件，该文件主要需要修改[connection]和[category]这两块的内容。
-3. 在[connection]区域内填入qb webui的地址/端口/用户名/密码，**不需要在最前面加http://**。
+3. 在[connection]区域内填入qb webui的地址/端口/用户名/密码，**注意必须要在链接最前面加http://或https://**。
 4. 在[category]区域内已经预填了一些常见pt tracker地址和qb分类的对应关系，一行代表一个tracker。该区域内的部分可以自定义添加或修改，**等号左边为tracker地址的关键字**，右边是qb定义的分类名。注意等号右边的**分类名，必须要已在qb中已存在**，否则运行会报错。
 5. [label]区域用于自动设置种子的标签，目前功能还在开发中，待使用。
 6. qb.py主程序里面定义了很多函数，都写了详细的注释，可以根据需要自行注释或取消main()的函数调用来实现相应的功能。
