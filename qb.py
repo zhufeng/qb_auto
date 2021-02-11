@@ -87,6 +87,8 @@ def qbConn(host,port,user,passwd):
     print ("I'm qbConn()...");
 
     global qbClient;
+    global isLocal;
+    isLocal = "0";
 
     # 打码输出读取的配置文件关键信息
     user1 = user[0:3] + "***" + user[len(user)-3:];
@@ -103,6 +105,7 @@ def qbConn(host,port,user,passwd):
         # http get 状态200表示可连接
         if (r.status_code == 200):
             host = "https://localhost";
+            isLocal = "1";
             print ("qb localhost connection detected --- Using localhost... ");
     except requests.exceptions.RequestException as e:
         print ("qb localhost Connection Refused!!! " );
@@ -397,6 +400,7 @@ def main():
     global labelDict;
     global qbClient;
     global torrents;
+    global isLocal;
 
     # 接收输入选项前先读取qb_auto.ini配置文件
     readConf();
@@ -414,7 +418,7 @@ def main():
 
     # 定义存放torrent的工作目录及qb BT_backup路径
     path = r'E:/torrents/';
-    qb_path = r'D:/常用软件/qbittorrent_x64/profile/qBittorrent/data/BT_backup/';
+    qb_path = r'D:/_software/_internet/qbittorrent/profile/qBittorrent/data/BT_backup/';
 
     # 外部传入参数"1"时自动执行
     option = "0";
@@ -476,25 +480,29 @@ def main():
 
             # 当qbclient可连接时才执行
             if (qbClient):
-                print ("请输入需要重命名的种子的路径：(直接回车默认使用E:/torrents/)");
-                path = input("");
-                if path == "":
-                    print ("输入path路径为空, 使用E:/torrents/...");
-                    path = r'E:/torrents/';
-                    pass;
+                # 当qb为本地运行且处于暂停的种子数量大于0时才执行
+                if (isLocal == "1") and (len(qbClient.torrents_info(filter='paused'))):
+                    print ("请输入需要重命名的种子的路径：(直接回车默认使用E:/torrents/)");
+                    path = input("");
+                    if path == "":
+                        print ("输入path路径为空, 使用E:/torrents/...");
+                        path = r'E:/torrents/';
+                        pass;
 
-                print ("请输入种子的pt站名位置: (直接回车默认为站名在前,其它任何字符为默认在后)");
-                type = input("");
+                    print ("请输入种子的pt站名位置: (直接回车默认为站名在前,其它任何字符为默认在后)");
+                    type = input("");
 
-                # 拷贝暂停的种子文件
-                copyPausedTorrentFile(qbClient, path, qb_path);
+                    # 拷贝暂停的种子文件
+                    copyPausedTorrentFile(qbClient, path, qb_path);
 
-                if type == "":
-                    print ("first");
-                    renameTorrent(path);
+                    if type == "":
+                        print ("first");
+                        renameTorrent(path);
+                    else:
+                        print ("last");
+                        renameTorrent(path, type='last');
                 else:
-                    print ("last");
-                    renameTorrent(path, type='last');
+                    print ("qb is not running localhost or No paused torrent... Will not copy paused torrents...\n");
 
     elif option == "4":
         for conn in hostDict:
