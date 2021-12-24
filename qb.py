@@ -3,6 +3,7 @@ import re
 import sys
 import ssl
 import uuid
+import json
 import time
 import shutil
 import requests
@@ -49,16 +50,17 @@ def readConf():
 
             # 判断ini配置中是否存在必需配置项
             if (cfg.has_option(elem,'host')) and (cfg.has_option(elem,'port')) and\
-                (cfg.has_option(elem,'user')) and (cfg.has_option(elem,'password')) :
+                (cfg.has_option(elem,'user')) and (cfg.has_option(elem,'password')) and\
+                (cfg.has_option(elem,'upspeed')):
                 pass;
             else:
-                print (elem + " : cfg file has NO HOST/PORT/USER/PASSWD Defined!!! Terminated!!!\n");
+                print (elem + " : cfg file has NO HOST/PORT/USER/PASSWD/UPSPEED Defined!!! Terminated!!!\n");
                 exit();
 
-            # 判断配置文件中host/user/password是否合法
+            # 判断配置文件中host/user/password/upspeed是否合法
             if len(cfg[elem]['host']) == 0 or len(cfg[elem]['user']) == 0 or\
-                    len(cfg[elem]['password']) == 0:
-                print (elem + " : HOST/USER/PASSWORD is EMPTY!!! Terminated!!!\n");
+                    len(cfg[elem]['password']) == 0 or len(cfg[elem]['upspeed']) == 0:
+                print (elem + " : HOST/USER/PASSWORD/UPSPEED is EMPTY!!! Terminated!!!\n");
                 exit();
 
             # 判断配置文件中port是否为数字
@@ -129,7 +131,9 @@ def qbConn(host,port,user,passwd):
     # instantiate a Client using the appropriate WebUI configuration
     # qbClient = qbittorrentapi.Client(host='localhost:****', username='***', password='***')
     try:
-        qbClient = qbittorrentapi.Client(host=host, username=user, password=passwd, VERIFY_WEBUI_CERTIFICATE=False);
+        qbClient = qbittorrentapi.Client(host=host, username=user, password=passwd, \
+                # VERIFY_WEBUI_CERTIFICATE=False, SIMPLE_RESPONSES=True);
+                VERIFY_WEBUI_CERTIFICATE=False );
     except qbittorrentapi.LoginFailed as e:
         print(e);
 
@@ -392,6 +396,54 @@ def getTorrentInfo(qbClient, cateDict=None):
     print ("getTorrentInfo done...!\n");
 
 
+# 对qb的限速进行自动设置
+def autoSpeedLimit(qbClient, upSpeed):
+    print ("I'm autoSpeedLimit()...");
+
+    # 获取当前时间
+    # print (time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
+    hour = int(time.strftime("%H", time.localtime()));
+    if ( hour < 9 ) and ( hour > 0 ):
+        print (hour, "点,晚上");
+        isDaytime = 0;
+    else:
+        print (hour, "点,白天");
+        isDaytime = 1;
+
+    # 获取当前活动的种子列表
+    torrents = qbClient.torrents_info(filter='active');
+    # print (json.dumps(torrents, indent = 4));
+
+    # 获取qb全局上传限速值
+    global_transfer = qbClient.transfer.info;
+    print (json.dumps(global_transfer, indent = 4));
+    if ( global_transfer.up_rate_limit == 0 ):
+        if ( global_transfer.up_info_speed/1024 < upSpeed ):
+            # 全局限速为0(即不限速)且全局上传速度小于配置文件中定义的值时
+            print ("Global UP limit: UNLIMITED && UP < " , upSpeed , "KB/s!!!");
+            for torrent in torrents:
+                # print (json.dumps(torrent, indent = 4));
+                torrentProperties = qbClient.torrents_properties(torrent_hash = torrent.hash);
+                if (torrent.up_limit != -1) and (torrent.up_limit != 0) :
+                    # 对当前活动且有上传限速的种子解除限速
+                    # print (f'{torrent.name[0:30]}|{torrent.up_limit/1024}kb/s|{torrent.category}');
+                    print (f'{torrent.name[0:30]}' + " -> UP limit to None...");
+                    torrent.set_upload_limit(limit=-1,torrent_hash=torrent.hash);
+                else:
+                    print (f'{torrent.name[0:30]}|{torrent.category}|',"UP speed UNLIMITED... Skipping...");
+        else:
+            # 全局无限速且上传大于配置文件定义的值时不做任何操作
+            print ("Global UP limit: UNLIMITED && UP > " , upSpeed , "KB/s, skipping...");
+            pass;
+    else:
+        # 当全局限速时,将限速值设为0即不限速
+        print ("Global UP limit: ", global_transfer.up_rate_limit/1024, " kb/s");
+        print ("Setting global up limit to UNLIMITED...");
+        qbClient.transfer_set_upload_limit( 0 );
+
+    print ("autoSpeedLimit done...!\n");
+
+
 def main():
     print ("I'm main()...", "\n");
 
@@ -405,9 +457,9 @@ def main():
     # 接收输入选项前先读取qb_auto.ini配置文件
     readConf();
     # print (host,user,passwd);
-    # print (cateDict);
-    # print (labelDict);
-    # print (hostDict);
+    # print (json.dumps(cateDict,indent=4));
+    # print (json.dumps(labelDict,indent=4));
+    # print (json.dumps(hostDict,indent=4));
 
     print ("    * * * *  功 能 菜 单  * * * *    \n");
     print ("1. 将qb未分类种子按预定义规则进行分类。");
@@ -435,7 +487,7 @@ def main():
         # print ("输入为空");
 
         for conn in hostDict:
-            # print (conn);
+            # print (json.dumps(conn, indent=4));
 
             # 连接qb webapi
             qbConn(conn['host'], conn['port'], conn['user'], conn['password']);
@@ -445,6 +497,10 @@ def main():
             if (qbClient):
                 forceReannounce(qbClient);
             # forceReannounce(qbClient,'frds');
+
+            # 自动配置上传速度限制
+            if (qbClient):
+                autoSpeedLimit(qbClient, int(conn['upspeed']));
 
             # 自动对未分类种子进行分类
             # 当qbclient可连接时才执行
@@ -519,4 +575,3 @@ def main():
 
 if __name__ == '__main__':
     main();
-

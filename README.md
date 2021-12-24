@@ -40,12 +40,13 @@ pip install torrentool
 2. 编辑qb_auto.ini文件，该文件主要需要修改[connection]和[category]这两块的内容。
 3. 在[connection]区域内填入qb webui的地址/端口/用户名/密码，<font color=red>**注意必须要在链接最前面加http://或https://**</font>，默认情况下会忽略https证书错误。
 4. 为提高连接性能，默认情况下程序会根据[connection]中定义的端口，首先尝试以localhost:port方式进行连接，如果同端口无法连接则会继续使用定义的host进行连接。
-5. 程序支持定义多个[connection]区域以依次连接多个qb webui地址，但必须以[connection]开头，如[connection1]、[connection2]。
-6. 在[category]区域内已经预填了一些常见pt tracker地址和qb分类的对应关系，一行代表一个tracker。该区域内的部分可以自定义添加或修改，**等号左边为tracker地址的关键字**，右边是qb定义的分类名。注意等号右边的**分类名，必须要已在qb中已存在**，否则运行会报错。
-7. [label]区域用于自动设置种子的标签，目前功能还在开发中，待使用。
-8. qb.py主程序里面定义了很多函数，都写了详细的注释，可以根据需要自行注释或取消main()的函数调用来实现相应的功能。
-9. 使用 python3 qb.py 命令运行。
-10. 检查qb中种子的分类是否已经被正确设置，或其它功能已实现。
+5. [connction]中的upspeed用于设置全局目标上传速度(kb/s)，当全局上传速度小于该值时，会自动对当前活动且限速的种子解除限速。
+6. 程序支持定义多个[connection]区域以依次连接多个qb webui地址，但必须以[connection]开头，如[connection1]、[connection2]。
+7. 在[category]区域内已经预填了一些常见pt tracker地址和qb分类的对应关系，一行代表一个tracker。该区域内的部分可以自定义添加或修改，**等号左边为tracker地址的关键字**，右边是qb定义的分类名。注意等号右边的**分类名，必须要已在qb中已存在**，否则运行会报错。
+8. [label]区域用于自动设置种子的标签，目前功能还在开发中，待使用。
+9. qb.py主程序里面定义了很多函数，都写了详细的注释，可以根据需要自行注释或取消main()的函数调用来实现相应的功能。
+10. 使用 python3 qb.py 命令运行。
+11. 检查qb中种子的分类是否已经被正确设置，或其它功能已实现。
 
 
 ---
@@ -57,4 +58,5 @@ pip install torrentool
 
 ---
 
-README.md 更新日期：Thu Feb 11 13:51:50 CST 2021
+README.md 更新日期：
+Fri Dec 24 23:13:14 CST 2021
