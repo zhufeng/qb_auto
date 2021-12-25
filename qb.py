@@ -45,7 +45,7 @@ def readConf():
     for i,elem in enumerate(cfg.sections()):
         # sections里面有以connection开头的部分
         if 'connection' in elem:
-            # print (elem);
+            # print (json.dumps(elem,indent=4));
             hostDict.append(cfg._sections[elem]);
 
             # 判断ini配置中是否存在必需配置项
@@ -75,11 +75,11 @@ def readConf():
 
     # 读取配置文件中[category]分类部分
     cateDict = cfg._sections['category'];
-    # print (cateDict);
+    # print (json.dumps(cateDict,indent=4));
 
     # 读取配置文件中[label]标签部分
     labelDict = cfg._sections['label'];
-    # print (labelDict);
+    # print (json.dumps(labelDict,indent=4));
 
     print ("readConf done!...\n");
 
@@ -126,7 +126,7 @@ def qbConn(host,port,user,passwd):
         return;
 
     host = host + ":" + port;
-    # print (host);
+    # print (json.dumps(host,indent=4));
 
     # instantiate a Client using the appropriate WebUI configuration
     # qbClient = qbittorrentapi.Client(host='localhost:****', username='***', password='***')
@@ -178,7 +178,7 @@ def autoCate(qbClient, cateDict):
 
     for torrent in torrents:
         # print(f'{torrent.hash[-6:]}: {torrent.name} ({torrent.state})')
-        # print (torrent);
+        # print (json.dumps(torrent,indent=4));
         for tracker in torrent.trackers:
             trackerUrl = tracker.url[0:30];
             if (trackerUrl.startswith('http')):
@@ -213,7 +213,7 @@ def autoLabel(qbClient, labelDict, cate=None):
     # torrents = qbClient.torrents_info(category='frds',limit=100);
     # torrents = qbClient.torrents_info();
 
-    # print (torrents);
+    # print (json.dumps(torrents,indent=4));
 
     for torrent in torrents:
         # print(f'{torrent.hash[-6:]}: {torrent.name} ({torrent.state})')
@@ -259,29 +259,57 @@ def forceReannounce(qbClient, cate=None):
 
 
 # 对种子的文件内容进行简单地文件存在检查
+# TODO
 def checkFileExistence():
     pass;
 
 
+# 检查并确定torrentPath路径
+def torrentPathCheck():
+
+    global torrentPath;
+    print ("I'm torrentPathCheck()...");
+
+    # 优先使用E盘，如果没有E盘则使用D盘
+    # 判断E/D盘的torrents文件夹是否存在,不存在就创建
+    if os.path.exists('E:'):
+        # print ("E:\\ exists, will using E:\\...");
+        if os.path.exists('E:\\torrents'):
+            print ("E:\\torrents\\ exists, will using E:\\torrents\\...");
+            torrentPath = 'E:\\torrents\\';
+        else:
+            print ("E:\\torrents\\ not exists, Creating and using it ...");
+            os.mkdir('E:\\torrents\\');
+            torrentPath = 'E:\\torrents\\';
+    elif os.path.exists('D:'):
+        # print ("D:\ exists, will using D:\\...");
+        torrentPath = 'D:\\';
+        if os.path.exists('D:\\torrents'):
+            print ("D:\\torrents\\ exists, will using D:\\torrents\\...");
+            torrentPath = 'D:\\torrents\\';
+        else:
+            print ("D:\\torrents\\ not exists, Creating and using it ...");
+            os.mkdir('D:\\torrents\\');
+            torrentPath = 'D:\\torrents\\';
+    else:
+        print ("E: and D: are both not exist!!! Terminating ...");
+        exit();
+
+    print ("torrentPathCheck done...!\n");
+
+
 # 按tracker来重命名种子文件
-def renameTorrent(path, cate=None, type='first'):
+def renameTorrent(torrentPath, cate=None, type='first'):
 
     print ("I'm renameTorrent()...");
     print ("Renaming type is -> " + type);
 
-    # 判断path参数的文件夹是否存在, 不存在就退出
-    if os.path.exists(path):
-        print (path + " exists...");
-    else:
-        print (path + " not exists!!! Terminating ...");
-        exit();
-
     winerror = [];
-    for file in os.listdir(path):
-        if os.path.isfile( path + file) & file.endswith('.torrent'):
-            print ( path + file);
+    for file in os.listdir(torrentPath):
+        if os.path.isfile( torrentPath + file) & file.endswith('.torrent'):
+            print ( torrentPath + file);
 
-            torrent_metadata = Bencode.read_file( path + file );
+            torrent_metadata = Bencode.read_file( torrentPath + file );
             torrent_tracker = torrent_metadata['announce'][0:50];
             torrent_name = torrent_metadata['info']['name'];
             if ( "private" in torrent_metadata['info'].keys() ):
@@ -321,31 +349,25 @@ def renameTorrent(path, cate=None, type='first'):
                     # file_new = file_site_last;
 
                     try:
-                        if os.path.join(path, file_new) == os.path.join(path, file):
+                        if os.path.join(torrentPath, file_new) == os.path.join(torrentPath, file):
                             print (file);
                             print ("No need to Rename...\n");
                             pass;
                         else:
                             print (file + " Renaming -> \n" + file_new );
-                            os.rename(os.path.join(path, file),os.path.join(path, file_new));
+                            os.rename(os.path.join(torrentPath, file),os.path.join(torrentPath, file_new));
                             print ("");
                     except WindowsError:
                         pass;
                         # winerror.append(file)
+
     print ("renameTorrent done...!\n");
 
 
 # 复制qb暂停种子的torrent文件到特定目录
-def copyPausedTorrentFile(qbClient, path, qb_path, cateDict=None):
+def copyPausedTorrentFile(qbClient, torrentPath, qb_path, cateDict=None):
 
     print ("I'm copyPausedTorrentFile()...");
-
-    # 判断path参数的文件夹是否存在, 不存在就创建
-    if os.path.exists(path):
-        print (path + " exists...");
-    else:
-        print (path + " not exists!!! Creating it ...");
-        os.mkdir(path);
 
     torrents = qbClient.torrents_info(filter='paused');
     # torrents = qbClient.torrents_info(category='');
@@ -355,12 +377,12 @@ def copyPausedTorrentFile(qbClient, path, qb_path, cateDict=None):
         # print(f'{torrent.hash}: {torrent.name[0:30]} ({torrent.state})')
         # print (torrent.hash + "|" + torrent.name[0:30] + "|" + torrent.save_path);
 
-        print ("Copying " + torrent.hash + " to " + path + "...");
+        print ("Copying " + torrent.hash + " to " + torrentPath + "...");
         torrent_file = qb_path + torrent.hash + ".torrent";
         # print (torrent_file);
 
-        # 从qb BT_backup目录复制筛选出来的种子到path目录
-        shutil.copy(torrent_file, path);
+        # 从qb BT_backup目录复制筛选出来的种子到torrentPath目录
+        shutil.copy(torrent_file, torrentPath);
 
     print ("copyPausedTorrentFile done...!\n");
 
@@ -372,6 +394,7 @@ def getTorrentInfo(qbClient, cateDict=None):
 
     # 筛选状态为"paused 暂停"的种子
     torrents = qbClient.torrents_info(filter='paused');
+    # torrents = qbClient.torrents_info(filter='active');
 
     # 筛选分类为"cmct"的种子
     # torrents = qbClient.torrents_info(category='cmct');
@@ -417,10 +440,10 @@ def autoSpeedLimit(qbClient, upSpeed):
     # 获取qb全局上传限速值
     global_transfer = qbClient.transfer.info;
     print (json.dumps(global_transfer, indent = 4));
-    if ( global_transfer.up_rate_limit == 0 ):
+    if ( global_transfer.up_rate_limit == 0 ) and ( isDaytime == 0 ):
         if ( global_transfer.up_info_speed/1024 < upSpeed ):
-            # 全局限速为0(即不限速)且全局上传速度小于配置文件中定义的值时
-            print ("Global UP limit: UNLIMITED && UP < " , upSpeed , "KB/s!!!");
+            # 0-9点之间,全局限速为0(即不限速)且全局上传速度小于配置文件中定义的值时
+            print ("Night Time, Global UP limit: UNLIMITED && UP < " , upSpeed , "KB/s!!!");
             for torrent in torrents:
                 # print (json.dumps(torrent, indent = 4));
                 torrentProperties = qbClient.torrents_properties(torrent_hash = torrent.hash);
@@ -432,14 +455,18 @@ def autoSpeedLimit(qbClient, upSpeed):
                 else:
                     print (f'{torrent.name[0:30]}|{torrent.category}|',"UP speed UNLIMITED... Skipping...");
         else:
-            # 全局无限速且上传大于配置文件定义的值时不做任何操作
-            print ("Global UP limit: UNLIMITED && UP > " , upSpeed , "KB/s, skipping...");
+            # 0-9点之间,全局无限速且上传大于配置文件定义的值时不做任何操作
+            print ("Night Time, Global UP limit: UNLIMITED && UP > " , upSpeed , "KB/s, skipping...");
             pass;
-    else:
-        # 当全局限速时,将限速值设为0即不限速
-        print ("Global UP limit: ", global_transfer.up_rate_limit/1024, " kb/s");
+    elif ( global_transfer.up_rate_limit != 0 ) and ( isDaytime == 0 ):
+        # 0-9点之间且全局限速时,解除限速
+        print ("Night Time, Global UP limit: ", global_transfer.up_rate_limit/1024, " KB/s");
         print ("Setting global up limit to UNLIMITED...");
         qbClient.transfer_set_upload_limit( 0 );
+    elif ( isDaytime == 1 ):
+        # 0-9点之外,即白天时,不做任何操作
+        print ("Day Time, Global UP limit: ", global_transfer.up_rate_limit/1024, " KB/s, skipping...");
+        pass;
 
     print ("autoSpeedLimit done...!\n");
 
@@ -451,6 +478,7 @@ def main():
     global cateDict;
     global labelDict;
     global qbClient;
+    global torrentPath;
     global torrents;
     global isLocal;
 
@@ -468,8 +496,7 @@ def main():
     print ("4. 获取qb特定种子的信息。");
     print ("请输入需要使用的功能选项：(直接回车默认选择1) \n");
 
-    # 定义存放torrent的工作目录及qb BT_backup路径
-    path = r'E:/torrents/';
+    # 定义qb BT_backup路径
     qb_path = r'D:/_software/_internet/qbittorrent/profile/qBittorrent/data/BT_backup/';
 
     # 外部传入参数"1"时自动执行
@@ -486,6 +513,11 @@ def main():
     if option == "" or option == "1":
         # print ("输入为空");
 
+        ### test - to - del
+        # # # torrentPathCheck();
+        # # # exit();
+        ### test - to - del
+
         for conn in hostDict:
             # print (json.dumps(conn, indent=4));
 
@@ -496,6 +528,7 @@ def main():
             # 当qbclient可连接时才执行
             if (qbClient):
                 forceReannounce(qbClient);
+                pass;
             # forceReannounce(qbClient,'frds');
 
             # 自动配置上传速度限制
@@ -509,23 +542,23 @@ def main():
             # print ("Hahaha -> 直接回车或1");
 
     elif option == "2":
-        print ("请输入需要重命名的种子的路径：(直接回车默认使用E:/torrents/)");
-        path = input("");
-        if path == "":
-            print ("输入path路径为空, 使用E:/torrents/...");
-            path = r'E:/torrents/';
+        print ("请输入需要重命名的种子的路径：(直接回车默认使用E:或D:/torrents/)");
+        torrentPath = input("");
+        if torrentPath == "":
+            print ("输入path路径为空, 使用E:或D:/torrents/...");
+            torrentPathCheck();
             pass;
 
         print ("请输入种子的pt站名位置: (直接回车默认为站名在前,其它任何字符为默认在后)");
         type = input("");
         if type == "":
             # print ("first");
-            # print (path);
-            renameTorrent(path);
+            # print (torrentPath);
+            renameTorrent(torrentPath);
         else:
             # print ("last");
-            # print (path);
-            renameTorrent(path, type='last');
+            # print (torrentPath);
+            renameTorrent(torrentPath, type='last');
 
     elif option == "3":
         for conn in hostDict:
@@ -538,25 +571,25 @@ def main():
             if (qbClient):
                 # 当qb为本地运行且处于暂停的种子数量大于0时才执行
                 if (isLocal == "1") and (len(qbClient.torrents_info(filter='paused'))):
-                    print ("请输入需要重命名的种子的路径：(直接回车默认使用E:/torrents/)");
-                    path = input("");
-                    if path == "":
-                        print ("输入path路径为空, 使用E:/torrents/...");
-                        path = r'E:/torrents/';
+                    print ("请输入需要重命名的种子的路径：(直接回车默认使用E:或D:/torrents/)");
+                    torrentPath = input("");
+                    if torrentPath == "":
+                        print ("输入path路径为空, 使用E:或D:/torrents/...");
+                        torrentPathCheck();
                         pass;
 
                     print ("请输入种子的pt站名位置: (直接回车默认为站名在前,其它任何字符为默认在后)");
                     type = input("");
 
                     # 拷贝暂停的种子文件
-                    copyPausedTorrentFile(qbClient, path, qb_path);
+                    copyPausedTorrentFile(qbClient, torrentPath, qb_path);
 
                     if type == "":
                         print ("first");
-                        renameTorrent(path);
+                        renameTorrent(torrentPath);
                     else:
                         print ("last");
-                        renameTorrent(path, type='last');
+                        renameTorrent(torrentPath, type='last');
                 else:
                     print ("qb is not running localhost or No paused torrent... Will not copy paused torrents...\n");
 
