@@ -471,6 +471,41 @@ def autoSpeedLimit(qbClient, upSpeed):
     print ("autoSpeedLimit done...!\n");
 
 
+# 对http的tracker批量修改为https
+def trackerHTTPS(qbClient, torrentCate=None):
+    print ("I'm trackerHTTPS()...");
+
+    print ("Input torrentCate is:" + torrentCate);
+
+    torrents = qbClient.torrents_info(category=torrentCate);
+    if len(torrents) == 0:
+        print ("No torrent with given category!! Terminated!!\n");
+        exit();
+
+    # 依次对获取到的torrent进行替换tracker
+    for torrent in torrents:
+        for tracker in torrent.trackers:
+            trackerUrl = tracker.url;
+            if (trackerUrl.startswith('http://')):
+                print ("\nNon HTTPS tracker found!!!...");
+                print(f'{torrent.hash[-6:]}: {torrent.name} ({torrent.state})')
+                # print (trackerUrl);
+
+                # 替换tracker的http为https且只替换一次
+                trackerUrl_new = trackerUrl.replace("http://", "https://", 1);
+                print (trackerUrl[0:30] + " --> " + trackerUrl_new[0:30]);
+
+                torrent.edit_tracker(orig_url=trackerUrl, new_url=trackerUrl_new );
+                # print (trackerUrl);
+                # print (json.dumps(torrent,indent=4));
+            elif (trackerUrl.startswith('https://')):
+                print ("\nTorrent Already has HTTPS tracker...");
+                # print (trackerUrl);
+                pass;
+
+    print ("trackerHTTPS done...!\n");
+
+
 def main():
     print ("I'm main()...", "\n");
 
@@ -494,6 +529,7 @@ def main():
     print ("2. 重命名特定目录下的torrent种子文件。");
     print ("3. 将qb暂停的种子的torrent文件复制到特定目录并重命名。");
     print ("4. 获取qb特定种子的信息。");
+    print ("5. 对qb中tracker为http的种子修改为https。");
     print ("请输入需要使用的功能选项：(直接回车默认选择1) \n");
 
     # 定义qb BT_backup路径
@@ -600,7 +636,36 @@ def main():
             # 连接qb webapi
             qbConn(conn['host'], conn['port'], conn['user'], conn['password']);
 
-            getTorrentInfo(qbClient, cateDict=None);
+            # 当qbclient可连接时才执行
+            if (qbClient):
+                getTorrentInfo(qbClient, cateDict=None);
+
+    elif option == "5":
+
+        # print (json.dumps(cateDict, indent=4));
+        # print (cateDict.values());
+
+        print ("请输入需要修改为https tracker的种子分类名称：(直接回车将对所有种子进行tracker检查)");
+        torrentCate = input("");
+        if torrentCate == "":
+            print ("输入种子分类为空, 将对所有种子进行tracker检查...");
+            pass;
+        elif torrentCate in cateDict.values():
+            print ("输入站点分类名为已在配置文件中定义的站点：" + torrentCate);
+        else:
+            print ("输入站点分类未在配置文件中定义，Terminated!!!....\n");
+            exit();
+
+        for conn in hostDict:
+            # print (conn);
+
+            # 连接qb webapi
+            qbConn(conn['host'], conn['port'], conn['user'], conn['password']);
+
+            # 当qbclient可连接时才执行
+            if (qbClient):
+                trackerHTTPS(qbClient, torrentCate);
+
 
 
     # autoLabel(qbClient, labelDict);

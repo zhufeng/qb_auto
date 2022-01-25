@@ -27,6 +27,7 @@ pip install torrentool
 2. 重命名特定目录下的torrent种子文件。
 3. 将qb暂停的种子的torrent文件复制到特定目录并重命名。
 4. 获取qb特定种子的信息。
+5. 对qb中tracker为http的种子修改为https。
 请输入需要使用的功能选项：(直接回车默认选择1)
 
 ```
@@ -59,4 +60,5 @@ pip install torrentool
 ---
 
 README.md 更新日期：
-Fri Dec 24 23:13:14 CST 2021
+
+Tue Jan 25 15:28:45 CST 2022
