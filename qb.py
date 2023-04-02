@@ -1,5 +1,6 @@
 import os
 import re
+import csv
 import sys
 import ssl
 import uuid
@@ -152,7 +153,23 @@ def qbConn(host,port,user,passwd):
 
     # retrieve and show all torrents
     # for torrent in qbClient.torrents_info():
-        # print(f'{torrent.hash[-6:]}: {torrent.name} ({torrent.state})')
+        # print(f'{torrent.hash[-16:]}: {torrent.name} ({torrent.state})')
+
+    """
+    # get torrent info and write to csv
+    with open('torrents.csv', 'w', encoding='utf-8', newline='') as new_file: 
+        # define needed torrent info 
+        fieldnames = ['hash','name','category','content_path','total_size'];
+        csv_writer = csv.DictWriter(new_file, fieldnames=fieldnames, extrasaction='ignore');
+        csv_writer.writeheader();
+
+        # retrieve all torrents and write info to csv
+        for torrent in qbClient.torrents_info():
+            print (torrent);
+            csv_writer.writerow(torrent);
+
+    new_file.close();
+    """
 
     # pause all torrents 
     # # # # # qbClient.torrents.pause.all()
