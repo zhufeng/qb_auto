@@ -9,7 +9,7 @@ import time
 import shutil
 import requests
 import datetime
-import telnetlib
+#import telnetlib
 import configparser
 import qbittorrentapi
 from torrentool.api import Torrent
@@ -523,6 +523,21 @@ def trackerHTTPS(qbClient, torrentCate=None):
     print ("trackerHTTPS done...!\n");
 
 
+# 自动开始iyuu添加的完整种子
+def autoStartIYUU(qbClient):
+    print ("I'm autoStartIYUU()...");
+
+    torrents = qbClient.torrents_info(status_filter='paused', tag='IYUU自动辅种');
+    # 同时满足状态为暂停且tag为iyuu
+    for torrent in torrents:
+        if (torrent.progress == 1):
+        # 进度为100%
+            # print (json.dumps(torrent,indent=4));
+            print(f'{torrent.hash[-16:]}: {torrent.name} {torrent.tags} ({torrent.state})');
+            torrentHash = torrent.hash;
+            qbClient.torrents_start(torrent_hashes=torrentHash);
+
+
 def main():
     print ("I'm main()...", "\n");
 
@@ -593,6 +608,11 @@ def main():
             if (qbClient):
                 autoCate(qbClient, cateDict);
             # print ("Hahaha -> 直接回车或1");
+
+
+            # 自动开始iyuu辅种的种子
+            if (qbClient):
+                autoStartIYUU(qbClient);
 
     elif option == "2":
         print ("请输入需要重命名的种子的路径：(直接回车默认使用E:或D:/torrents/)");
